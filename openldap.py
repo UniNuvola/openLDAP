@@ -2,21 +2,26 @@ import sys
 import hashlib
 import logging
 from ldap3 import Server, Connection, ALL, SUBTREE
-from ldap3.core.exceptions import LDAPException, LDAPBindError
+from ldap3.core.exceptions import LDAPException, LDAPBindError, LDAPEntryAlreadyExistsResult
 
 
-logging.basicConfig(level=logging.DEBUG)
-
-# TODO: logging system
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s: %(message)s',
+    level=logging.INFO,
+)
 
 
 class Manager():
+    """"""
     conn = None
 
     def __init__(self, envfile=".env"):
+        logging.debug('Initializing connection')
+
         self.__envfile = envfile
 
         # TODO: load from .env
+
         self.server_uri = "ldap://localhost:389"
         self.dc = 'dc=example,dc=org'
         self.ou_groups = 'groups'
@@ -29,6 +34,16 @@ class Manager():
             {'user_id':'mirko', 'first_name': 'mirko', 'last_name': 'mariotti', 'password': '1234patata', 'ou':self.ou_users, 'uid':1002, 'gid':500},
         ]
 
+        logging.debug(
+            'Loaded configs: server_uri: %s, dc: %s, ou_groups: %s, ou_users %s, conn_str: %s',
+            self.server_uri,
+            self.dc,
+            self.ou_groups,
+            self.ou_users,
+            self.conn_str,
+        )
+        logging.debug('USERS: %s', self.USERS)
+
         self.__auth()
 
     def __auth(self):
@@ -37,9 +52,12 @@ class Manager():
         """
         """
         if self.conn is None:
+            logging.debug("Connecting to %s", self.server_uri)
+
             try:
                 # Provide the hostname and port number of the openLDAP
                 server = Server(self.server_uri, get_info=ALL)
+                logging.debug('Server: %s', server)
 
                 # username and password can be configured during openldap setup
                 connection = Connection(
@@ -48,34 +66,47 @@ class Manager():
                     password='admin',
                     raise_exceptions=True,
                 )
+                logging.debug('Connection: %s', connection)
 
                 bind_response = connection.bind() # Returns True or False
-                print(bind_response)
+                logging.debug('Bind connection: %s', bind_response)
 
                 if bind_response is False:
-                    print("Binding error !")
+                    logging.error("Binding error !")
                     sys.exit(1)
 
             except LDAPBindError as e:
-                print(e)
+                logging.error(e)
                 sys.exit(1)
 
             self.conn = connection
+            logging.debug("Connection: %s", self.conn)
+
+            logging.info("Successfully connected !")
 
     def __add_organizational_units(self, ou_name):
         ldap_attr = {
             'objectClass': ['top', 'organizationalUnit']
         }
+        dn = f'ou={ou_name},{self.dc}'
 
-        # make Organization Unit
+        logging.debug("ADD REQ: dn: %s, attr: %s", dn, ldap_attr)
+
         try:
             response = self.conn.add(
-                f'ou={ou_name},{self.dc}',
+                dn,
                 attributes=ldap_attr,
             )
+            logging.debug("Respone: %s", response)
+
+        except LDAPEntryAlreadyExistsResult as e:
+            logging.warning(e)
+            response = "skip"
+            # response = f"WARNING - {e}"
 
         except LDAPException as e:
-            response = (" The error is ", e)
+            logging.error(e)
+            sys.exit(1)
 
         return response
 
@@ -84,15 +115,25 @@ class Manager():
             'objectClass': ['top', 'posixGroup'],
             'gidNumber': f'{group_id}',
         }
+        dn = f'cn={group_name},ou={self.ou_groups},{self.dc}'
+
+        logging.debug("ADD REQ: dn: %s, attr: %s", dn, ldap_attr)
 
         try:
             response = self.conn.add(
-                f'cn={group_name},ou={self.ou_groups},{self.dc}',
+                dn,
                 attributes=ldap_attr,
             )
+            logging.debug("Respone: %s", response)
+
+        except LDAPEntryAlreadyExistsResult as e:
+            logging.warning(e)
+            response = "skip"
+            # response = f"WARNING - {e}"
 
         except LDAPException as e:
-            response = (" The error is ", e)
+            logging.error(e)
+            sys.exit(1)
 
         return response
 
@@ -110,17 +151,25 @@ class Manager():
             'homeDirectory': f'/home/user/{user_id}',
             'objectClass': ['inetOrgPerson', 'posixAccount', 'top'],
         }
-
         dn = f'cn={common_name},ou={ou},{self.dc}'
-        logging.debug('DN: %s', dn)
+
+        logging.debug("ADD REQ: dn: %s, attr: %s", dn, ldap_attr)
 
         try:
             response = self.conn.add(
                 dn,
                 attributes=ldap_attr,
             )
+            logging.debug("Respone: %s", response)
+
+        except LDAPEntryAlreadyExistsResult as e:
+            logging.warning(e)
+            response = "skip"
+            # response = f"WARNING - {e}"
+
         except LDAPException as e:
-            response = e
+            logging.error(e)
+            sys.exit(1)
 
         return response
 
@@ -128,12 +177,12 @@ class Manager():
         """
         """
         response = self.__add_organizational_units(self.ou_groups)
-        print(f"OU {self.ou_groups}: {response}")
+        logging.info("OU %s: %s", self.ou_groups, response)
 
         gid = starting_gid
         for g in groups:
             response = self.__add_posixgroup(g, gid)
-            print(f"CN {g}: {response}")
+            logging.info("CN %s: %s", g, response)
 
             gid += 1
 
@@ -142,11 +191,11 @@ class Manager():
         """
         """
         response = self.__add_organizational_units(self.ou_users)
-        print(f"OU {self.ou_users}: {response}")
+        logging.info("OU %s: %s", self.ou_users, response)
 
         for user in self.USERS:
             response = self.__add_user(**user)
-            print(f"USER: {response}")
+            logging.info("USER: %s", response)
 
     def __del__(self):
         logging.info('Closing connection')
