@@ -40,9 +40,11 @@ services:
       - /var/lib/ldap
       - /etc/ldap/slapd.d
       - /container/service/slapd/assets/certs/
-    ports:
-      - "389:389"
-      - "636:636"
+
+    # ports:
+    #   - "389:389"
+    #   - "636:636"
+
     # For replication to work correctly, domainname and hostname must be
     # set correctly so that "hostname"."domainname" equates to the
     # fully-qualified domain name for the host.
@@ -51,7 +53,6 @@ services:
 
   phpldapadmin:
     networks:
-      default:
       uninuvola:
         ipv4_address: 10.9.245.3
     image: osixia/phpldapadmin:latest
@@ -60,7 +61,7 @@ services:
       PHPLDAPADMIN_LDAP_HOSTS: "openldap"
       PHPLDAPADMIN_HTTPS: "false"
     ports:
-      - "8081:80"
+      - 8081:80
     depends_on:
       - openldap
 
