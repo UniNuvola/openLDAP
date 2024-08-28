@@ -6,7 +6,7 @@ openLDAP's docker compose configuration
 
 Create a `.env` file with the following vars:
 
-```yaml
+```env
 DOMAIN=
 ADMIN_PASSWORD=
 CONFIG_PASSWORD=
@@ -17,7 +17,7 @@ READONLY_USER_PASSWORD=
 An example could be:
 
 
-```yaml
+```env
 DOMAIN=example.org
 ADMIN_PASSWORD=admin
 CONFIG_PASSWORD=config
