@@ -6,7 +6,7 @@ services:
       uninuvola:
         ipv4_address: ${LDAP_IP}
     environment:
-      LDAP_LOG_LEVEL: "256"
+      LDAP_LOG_LEVEL: "0"
       LDAP_ORGANISATION: ${PROJECT}
       LDAP_DOMAIN: ${DOMAIN}
       LDAP_BASE_DN: ""
